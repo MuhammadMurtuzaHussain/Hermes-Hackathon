@@ -1,0 +1,12 @@
+route:
+  receiver: night-shift
+  group_by: [alertname, service]
+  group_wait: 5s
+  group_interval: 1m
+  repeat_interval: 1h
+
+receivers:
+  - name: night-shift
+    webhook_configs:
+      - url: http://relay:9095/
+        send_resolved: false

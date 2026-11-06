@@ -1,0 +1,40 @@
+name: night-shift
+version: 0.1.0
+manifest_version: 2
+api_version: 1
+description: >-
+  An on-call engineer that never sleeps. Night Shift triages infrastructure
+  alerts with read-only diagnostics, proposes fixes behind human approval, and
+  writes a runbook skill after every resolved incident so the next one is faster.
+author: Muhammad Murtuza Hussain
+license: MIT
+homepage: https://github.com/muhammadmurtuzahussain/hermes-hackathon
+tags: [devops, sre, on-call, incident-response, observability]
+
+provides_tools:
+  - nightshift_diagnose
+  - nightshift_query_metrics
+  - nightshift_recall
+  - nightshift_propose_fix
+  - nightshift_resolve
+
+provides_hooks:
+  - pre_tool_call
+
+config_schema:
+  prometheus_url:
+    type: str
+    default: "http://localhost:9090"
+    description: "Prometheus base URL used by nightshift_query_metrics."
+  docker_host_prefix:
+    type: str
+    default: ""
+    description: "Optional prefix for diagnostic commands, e.g. 'ssh ops@prod-1' to run checks remotely."
+  guard_mode:
+    type: str
+    default: "incident"
+    description: "'incident' guards only sessions with an open incident; 'always' guards every session; 'off' disables the guard."
+  runbook_category:
+    type: str
+    default: "night-shift"
+    description: "Skill category that learned runbooks are written into."

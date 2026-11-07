@@ -1,7 +1,8 @@
 name: night-shift
-version: 0.1.0
+version: 0.2.0
 manifest_version: 2
 api_version: 1
+requires_hermes: ">=0.22.0"
 description: >-
   An on-call engineer that never sleeps. Night Shift triages infrastructure
   alerts with read-only diagnostics, proposes fixes behind human approval, and
@@ -16,25 +17,58 @@ provides_tools:
   - nightshift_query_metrics
   - nightshift_recall
   - nightshift_propose_fix
+  - nightshift_escalate
   - nightshift_resolve
 
 provides_hooks:
   - pre_tool_call
 
 config_schema:
+  slack_channel:
+    type: str
+    default: ""
+    description: "Slack channel id for incident cards with Approve and Deny buttons. Needs the Slack platform connected."
+  approvers:
+    type: list
+    default: []
+    description: "Who may approve, e.g. ['slack:U012ABC']. Buttons refuse everyone until this is set."
   prometheus_url:
     type: str
     default: "http://localhost:9090"
-    description: "Prometheus base URL used by nightshift_query_metrics."
+    description: "Prometheus base URL for metric queries and recovery checks."
+  deploy_history_command:
+    type: str
+    default: ""
+    description: "Read-only command that prints recent deploys, e.g. 'git log -5 --oneline' or 'kubectl rollout history deploy/api'."
+  db_check_command:
+    type: str
+    default: ""
+    description: "Read-only command for the database check. Defaults to pg_stat_activity in a container named postgres."
   docker_host_prefix:
     type: str
     default: ""
-    description: "Optional prefix for diagnostic commands, e.g. 'ssh ops@prod-1' to run checks remotely."
+    description: "Optional prefix for commands, e.g. 'ssh ops@prod-1' to run checks and fixes remotely."
   guard_mode:
     type: str
     default: "incident"
-    description: "'incident' guards only sessions with an open incident; 'always' guards every session; 'off' disables the guard."
+    description: "'incident' guards alert runs and any session with an open incident; 'always' guards every session; 'off' disables the guard."
+  webhook_route:
+    type: str
+    default: "nightshift"
+    description: "Name of the webhook route whose runs are guarded from their first tool call."
   runbook_category:
     type: str
     default: "night-shift"
     description: "Skill category that learned runbooks are written into."
+  verify_timeout_seconds:
+    type: int
+    default: 90
+    description: "How long to wait for the recovery check after running a fix."
+  approval_ttl_minutes:
+    type: int
+    default: 60
+    description: "A proposal older than this cannot be approved: the system may have moved on."
+  dedupe_minutes:
+    type: int
+    default: 10
+    description: "Further alerts for a service with an active incident join it instead of opening another."

@@ -14,7 +14,7 @@ from prometheus_client import Counter, Gauge, generate_latest
 from psycopg2.pool import ThreadedConnectionPool
 
 RELEASE = os.environ.get("RELEASE", "v1")
-DSN = os.environ.get("DATABASE_URL", "postgresql://postgres:postgres@postgres:5432/postgres")
+DSN = os.environ.get("DATABASE_URL", "postgresql://app:app@postgres:5432/postgres")
 
 app = Flask(__name__)
 REQUESTS = Counter("http_requests_total", "Requests", ["status"])

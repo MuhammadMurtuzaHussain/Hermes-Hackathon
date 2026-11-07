@@ -468,6 +468,14 @@ class SlackCardTests(unittest.TestCase):
         inc.status = "resolved"
         self.assertNotIn("actions", [b["type"] for b in notify.slack_blocks(inc)])
 
+    def test_a_long_cause_is_clipped_on_the_card_but_kept_in_full(self):
+        inc = self.incident()
+        inc.proposed_fix["diagnosis"] = "First sentence is the cause. " + "More evidence here. " * 60
+        text = json.dumps(notify.slack_blocks(inc))
+        self.assertIn("First sentence", text)
+        self.assertLess(text.count("More evidence"), 25)
+        self.assertEqual(inc.proposed_fix["diagnosis"].count("More evidence"), 60)
+
     def test_untrusted_text_cannot_ping_the_channel(self):
         self.assertNotIn("<!channel>", json.dumps(notify.slack_blocks(self.incident())))
 

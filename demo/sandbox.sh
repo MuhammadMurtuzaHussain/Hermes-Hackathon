@@ -116,8 +116,11 @@ YAML
 
 stop_gateway() {
   # HERMES_HOME scopes this to the sandbox's own gateway. Never kill by port: that could be yours.
-  "$HERMES" gateway stop >/dev/null 2>&1 || true
-  for _ in $(seq 1 90); do curl -s -m 1 localhost:8644/health >/dev/null || return 0; sleep 0.5; done
+  # A stop asked for during a running agent turn can be dropped while it drains, so ask again.
+  for _ in $(seq 1 12); do
+    "$HERMES" gateway stop >/dev/null 2>&1 || true
+    for _ in $(seq 1 10); do curl -s -m 1 localhost:8644/health >/dev/null || return 0; sleep 0.5; done
+  done
   echo "Port 8644 is still in use by another process." >&2
   exit 1
 }

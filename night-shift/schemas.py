@@ -70,7 +70,10 @@ PROPOSE_FIX = {
         "type": "object",
         "properties": {
             "incident_id": {"type": "string"},
-            "diagnosis": {"type": "string", "description": "Root cause in plain English, with the evidence."},
+            "diagnosis": {
+                "type": "string",
+                "description": "Two short sentences for someone just woken up: the cause, then the strongest evidence.",
+            },
             "symptoms": {"type": "string", "description": "Observable symptoms that identify this failure."},
             "commands": {
                 "type": "array", "items": {"type": "string"},

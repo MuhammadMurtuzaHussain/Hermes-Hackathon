@@ -40,6 +40,7 @@ production yourself.
      the container name, the image is not. No checks in here.
    - `verify_promql`: a comparison that is false now and true once healthy, e.g. `up{job="api"} == 1`.
      Prefer this. `verify_command` runs on this host, so Docker-internal hostnames will not resolve.
-   - `symptoms` and `diagnosis`: these become the runbook, so make them specific.
+   - `diagnosis`: two short sentences for someone just woken up, the cause then the strongest
+     evidence. `symptoms`: what identifies this failure next time. Both go into the runbook.
 4. **Stop.** Follow the `instruction` in the result. Night Shift posts the card, and after a human
    approves it runs the commands, checks recovery and writes the runbook. You are done.

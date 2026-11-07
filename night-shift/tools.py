@@ -282,8 +282,10 @@ class NightShift:
             inc.recalled_from = book.skill_name if recalled else ""
             if recalled and book.history:
                 last = book.history[-1].get("time_to_recover")
-                inc.track_record = (f"Worked {len(book.history)}x before, {book.failures} failed. "
-                                    f"Last recovery {duration(last)} after approval.")
+                worked = len(book.history)
+                inc.track_record = (f"Worked {worked} time{'' if worked == 1 else 's'} before"
+                                    + (f", failed {book.failures}" if book.failures else "")
+                                    + f". Last recovery {duration(last)} after approval.")
             inc.mark("fix proposed" + (f" from runbook {inc.recalled_from}" if recalled else ""))
             problem = self.notifier.post(inc)
             self._save_incident(inc)

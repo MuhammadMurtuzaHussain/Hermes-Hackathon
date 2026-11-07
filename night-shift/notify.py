@@ -47,6 +47,16 @@ def fallback_text(inc: Incident) -> str:
     return f"{head}: {inc.status.replace('_', ' ')}. {inc.outcome}".strip()
 
 
+def brief(text: str, limit: int = 420) -> str:
+    """The card is read at 3am. The full text stays in /nightshift show."""
+    text = str(text or "")
+    if len(text) <= limit:
+        return text
+    cut = text[:limit]
+    end = max(cut.rfind(". "), cut.rfind("; "))
+    return (cut[:end + 1] if end > limit // 2 else cut.rstrip()) + " …"
+
+
 def status_line(inc: Incident) -> str:
     if inc.status == "fix_proposed":
         return f"Waiting for approval · card ready in {duration(inc.time_to_card)}"
@@ -59,9 +69,9 @@ def status_line(inc: Incident) -> str:
     if inc.status == "denied":
         return f"⛔ Denied by {esc(inc.denied_by)}. Nothing was run. The incident is yours."
     if inc.status == "escalated":
-        return f"🙋 *Needs a human.* {esc(inc.escalation)}"
+        return f"🙋 *Needs a human.* {esc(brief(inc.escalation, 700))}"
     if inc.status == "dismissed":
-        return f"💤 *Dismissed as a false alarm.* {esc(inc.escalation)}"
+        return f"💤 *Dismissed as a false alarm.* {esc(brief(inc.escalation, 700))}"
     return esc(inc.status)
 
 
@@ -74,11 +84,11 @@ def slack_blocks(inc: Incident) -> list[dict]:
     if inc.recalled_from:
         blocks.append(_section(f"🧠 *Recognised.* Runbook `{esc(inc.recalled_from)}`. {esc(inc.track_record)}".strip()))
     if fix:
-        blocks.append(_section(f"*Cause*\n{esc(fix.get('diagnosis', ''))}"))
+        blocks.append(_section(f"*Cause*\n{esc(brief(fix.get('diagnosis', '')))}"))
         commands = "\n".join(esc(c) for c in fix.get("commands", []))
         risk = str(fix.get("risk", "unknown"))
         blocks.append(_section(f"*Fix* · risk: {_RISK_EMOJI.get(risk, '⚪')} {esc(risk)}\n```{commands}```"))
-        blocks.append(_context(f"Recovery check: {esc(fix.get('verification', ''))}"))
+        blocks.append(_context(f"Recovery check: {esc(brief(fix.get('verification', ''), 200))}"))
     blocks.append(_section(status_line(inc)))
     if inc.status == "fix_proposed":
         blocks.append({"type": "actions", "block_id": f"nightshift:{inc.id}", "elements": [

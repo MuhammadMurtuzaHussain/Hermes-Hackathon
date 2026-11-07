@@ -31,7 +31,7 @@ have cleared: wait until <http://localhost:9090/alerts> is green before each bre
 | 0:24 to 0:40 | The card arrives. Hold on Cause and Fix, zoom in. Tap **Approve fix**, confirm | "Night Shift investigated, read-only. It found the deploy, and it's asking one question. Roll back? I read the exact command and tap." |
 | 0:40 to 0:48 | The card flips to **Resolved** | "It ran what I approved, and it proved the service recovered. Not 'done'. Verified." |
 | 0:48 to 0:58 | Terminal: `cat` the runbook skill, scroll to Procedure | "Then it wrote the runbook. A real Hermes skill. Only commands a human approved and a check verified." |
-| 0:58 to 1:12 | `./chaos/bad-deploy.sh` again. Sped-up wait. Card with **Recognised** and "Worked 1x before". Tap. Resolved | "Same failure tomorrow night. It recognises it, shows the track record, and asks. One tap." |
+| 0:58 to 1:12 | `./chaos/bad-deploy.sh` again. Sped-up wait. Card with **Recognised** and "Worked 1 time before". Tap. Resolved | "Same failure tomorrow night. It recognises it, shows the track record, and asks. One tap." |
 | 1:12 to 1:20 | Split: a stranger's click refused, then `./e2e.py --only poison` passing, or the guard log | "A stranger can't approve. A poisoned alert can't talk it into anything. The guard is code, not a prompt." |
 | 1:20 to 1:25 | Title: Night Shift. Repo URL. Tag line | "Read-only by default. A human approves every change. Better every night." |
 

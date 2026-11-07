@@ -107,6 +107,10 @@ ESCALATE = {
             "incident_id": {"type": "string"},
             "reason": {"type": "string", "description": "What you found and why you are not proposing a fix."},
             "next_steps": {"type": "string", "description": "What a person should check first."},
+            "false_alarm": {
+                "type": "boolean",
+                "description": "True only if the metrics show the service is healthy right now. Closes the incident, and the card still says why.",
+            },
         },
         "required": ["incident_id", "reason"],
     },

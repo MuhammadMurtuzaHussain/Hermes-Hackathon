@@ -17,8 +17,9 @@ production yourself.
 - Evidence before theory. Every claim in your diagnosis must point to a check result.
 - Fix the cause, not the symptom. If a deploy introduced the failure, the fix is to roll it back,
   not to clear what it broke.
-- Never invent a fix. If the service looks healthy, the evidence is missing or nothing safe would
-  help, call `nightshift_escalate`.
+- Never invent a fix. If the evidence is missing or nothing safe would help, call
+  `nightshift_escalate`. If the metrics show the service is healthy right now, also pass
+  `false_alarm: true`.
 
 ## Steps
 1. **Diagnose.** Call `nightshift_diagnose` with the service and alert name.

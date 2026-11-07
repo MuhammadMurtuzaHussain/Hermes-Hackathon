@@ -18,8 +18,12 @@ from dataclasses import asdict, dataclass, field
 _WORD = re.compile(r"[a-z0-9]+")
 _STOPWORDS = {"the", "a", "an", "and", "or", "of", "to", "in", "on", "is", "was", "for", "with", "at"}
 
-# Incident states that mean someone (human or agent) is already on it.
+# Incident states that mean someone (human or agent) is still on it.
 ACTIVE = {"open", "fix_proposed", "fixing", "escalated"}
+# States where a second alert for the service is the same failure showing up elsewhere. An
+# escalated incident is not here: it must not swallow a different alert, or a real outage
+# could vanish behind one a human is only looking at.
+WORKING = {"open", "fix_proposed", "fixing"}
 
 
 def tokens(text: str) -> set[str]:
@@ -52,7 +56,7 @@ class Incident:
     summary: str = ""
     id: str = field(default_factory=lambda: "INC-" + uuid.uuid4().hex[:6].upper())
     opened_at: float = field(default_factory=time.time)
-    # open | fix_proposed | fixing | resolved | fix_failed | denied | escalated
+    # open | fix_proposed | fixing | resolved | fix_failed | denied | escalated | dismissed
     status: str = "open"
     evidence: list[str] = field(default_factory=list)
     timeline: list[dict] = field(default_factory=list)
@@ -155,11 +159,15 @@ def render_skill(rb: Runbook, incident: Incident) -> str:
         f"- {h['incident']}: card in {duration(h.get('time_to_card'))}, "
         f"recovered {duration(h.get('time_to_recover'))} after approval"
         for h in rb.history) or "- (first occurrence)"
-    description = (f"Learned runbook for the {alert} alert on {service}. Use when this alert fires or "
-                   f"the symptoms below appear. Written by Night Shift from {rb.learned_from}.")
+    # Hermes refuses a skill description over 60 characters, or one without a closing period.
+    trigger = re.sub(r"[^A-Za-z0-9_-]+", " ", f"{rb.alertname} on {rb.service}").strip()
+    description = f"Fix {trigger[:54].strip()}."
     return f"""---
 name: {rb.skill_name}
 description: {json.dumps(description)}
+version: 1.{len(rb.history)}.0
+author: Night Shift
+license: MIT
 metadata:
   night_shift:
     alertname: {json.dumps(alert)}

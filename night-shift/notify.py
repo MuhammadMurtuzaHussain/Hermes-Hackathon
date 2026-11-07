@@ -60,6 +60,8 @@ def status_line(inc: Incident) -> str:
         return f"⛔ Denied by {esc(inc.denied_by)}. Nothing was run. The incident is yours."
     if inc.status == "escalated":
         return f"🙋 *Needs a human.* {esc(inc.escalation)}"
+    if inc.status == "dismissed":
+        return f"💤 *Dismissed as a false alarm.* {esc(inc.escalation)}"
     return esc(inc.status)
 
 

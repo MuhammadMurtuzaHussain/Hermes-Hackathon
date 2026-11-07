@@ -1,12 +1,18 @@
 route:
   receiver: night-shift
   group_by: [alertname, service]
-  group_wait: 5s
-  group_interval: 1m
+  group_wait: 1s
+  group_interval: 10s
   repeat_interval: 1h
 
 receivers:
   - name: night-shift
     webhook_configs:
       - url: http://relay:9095/
-        send_resolved: false
+        send_resolved: true   # the Hermes route filters these out, but they clear Alertmanager's state
+
+# One failure, one page: a saturated database also makes requests fail.
+inhibit_rules:
+  - source_matchers: [alertname="DBConnectionsExhausted"]
+    target_matchers: [alertname="ApiErrorRateHigh"]
+    equal: [service]

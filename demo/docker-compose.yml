@@ -32,7 +32,7 @@ services:
   loadgen:
     image: curlimages/curl:8.10.1
     container_name: loadgen
-    entrypoint: ["sh", "-c", "while true; do curl -s -o /dev/null http://api:8080/orders; sleep 0.5; done"]
+    entrypoint: ["sh", "-c", "while true; do curl -s -o /dev/null http://api:8080/orders; sleep 0.25; done"]
     depends_on: [api]
 
   postgres-exporter:
@@ -67,3 +67,12 @@ services:
       NIGHTSHIFT_WEBHOOK_SECRET: ${NIGHTSHIFT_WEBHOOK_SECRET:?set it in demo/.env}
       HERMES_WEBHOOK_URL: ${HERMES_WEBHOOK_URL:-http://host.docker.internal:8644/webhooks/nightshift}
     extra_hosts: ["host.docker.internal:host-gateway"]
+
+  # A local stand-in for Slack: docker compose --profile mock up -d. See mock-slack/server.py.
+  mock-slack:
+    profiles: [mock]
+    build: ./mock-slack
+    container_name: mock-slack
+    environment:
+      MOCK_SLACK_WS_HOST: 127.0.0.1:8770
+    ports: ["127.0.0.1:8770:8770"]

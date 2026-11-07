@@ -1,0 +1,4 @@
+# Test tooling for demo/sandbox.sh. Not part of the Night Shift plugin and never published.
+name: mock-slack-shim
+version: 0.1.0
+description: Points Hermes's real Slack adapter at the local mock in demo/mock-slack.

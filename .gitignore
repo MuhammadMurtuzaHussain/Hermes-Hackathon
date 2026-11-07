@@ -3,3 +3,4 @@ __pycache__/
 .venv/
 demo/.env
 .DS_Store
+demo/deploys.log

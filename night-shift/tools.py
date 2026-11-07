@@ -23,7 +23,7 @@ import urllib.request
 
 from . import policy
 from .notify import Notifier
-from .runbooks import ACTIVE, Incident, Runbook, best_match, duration, one_line, render_skill, skill_name_for
+from .runbooks import ACTIVE, WORKING, Incident, Runbook, best_match, duration, one_line, render_skill, skill_name_for
 
 logger = logging.getLogger(__name__)
 
@@ -150,7 +150,7 @@ class NightShift:
                 self.guarded_sessions |= self._session_ids(kwargs)
             inc = self.get_incident(args.get("incident_id", ""))
             if inc is None:
-                if dup := self._active_for(service):
+                if dup := self._active_for(service, alertname):
                     dup.mark(f"also alerted: {one_line(alertname, 80)}")
                     self._save_incident(dup)
                     return _ok(duplicate_of=dup.id, status=dup.status,
@@ -161,20 +161,36 @@ class NightShift:
             catalogue = self.checks_for(service)
             wanted = args.get("checks") or list(catalogue)
             results = {name: self._check(catalogue[name]) for name in wanted if name in catalogue}
-            inc.evidence.append(f"{time.strftime('%H:%M:%S')} diagnose: {', '.join(results)}")
+            results["commands_run_from"] = self._check("pwd")
+            inc.evidence.append(f"{time.strftime('%H:%M:%S')} diagnose: {', '.join(wanted)}")
             self._save_incident(inc)
             found = self._recall(alertname, service, "")
+            next_step = ("A runbook matches. If the evidence fits, propose its fix now."
+                         if found else "No runbook matches. Work out the cause from the evidence.")
+            if (fixed := self._recently_fixed(service)) and fixed.id != inc.id:
+                ago = int(time.time() - fixed.resolved_at)
+                next_step = (f"{fixed.id} on this service was fixed {ago}s ago, and alerts on rates lag behind recovery. "
+                             "Check current metrics first. If the service is healthy now, this is an echo: call "
+                             "nightshift_escalate with false_alarm=true. " + next_step)
             return _ok(incident_id=inc.id, service=service, alertname=alertname, results=results, known_runbook=found,
-                       next_step=("A runbook matches. If the evidence fits, propose its fix now."
-                                  if found else "No runbook matches. Work out the cause from the evidence."))
+                       next_step=next_step)
         except Exception as exc:
             logger.exception("Night Shift diagnose failed")
             return _err(f"diagnose failed: {exc}")
 
-    def _active_for(self, service: str) -> Incident | None:
+    def _active_for(self, service: str, alertname: str) -> Incident | None:
         window = float(self.cfg("dedupe_minutes", 10)) * 60
-        live = [i for i in self.open_incidents() if i.service == service and time.time() - i.opened_at < window]
+        live = [i for i in self.open_incidents() if i.service == service and time.time() - i.opened_at < window
+                and (i.status in WORKING or i.alertname == alertname)]
         return max(live, key=lambda i: i.opened_at) if live else None
+
+    def _recently_fixed(self, service: str) -> Incident | None:
+        """An alert just after a fix is often an echo: rate() windows lag behind recovery."""
+        window = float(self.cfg("echo_minutes", 3)) * 60
+        done = [Incident.from_dict(d) for d in self._incidents().values()
+                if d.get("status") == "resolved" and d.get("service") == service and d.get("resolved_at")]
+        done = [i for i in done if time.time() - i.resolved_at < window]
+        return max(done, key=lambda i: i.resolved_at) if done else None
 
     def query_metrics(self, args: dict, **kwargs) -> str:
         promql = (args.get("promql") or "").strip()
@@ -265,8 +281,9 @@ class NightShift:
         reason = one_line(args.get("reason"), 1200)
         if steps := one_line(args.get("next_steps"), 600):
             reason += f" Check first: {steps}"
-        inc.status, inc.escalation = "escalated", reason
-        inc.mark("escalated to a human")
+        false_alarm = bool(args.get("false_alarm"))
+        inc.status, inc.escalation = ("dismissed" if false_alarm else "escalated"), reason
+        inc.mark("dismissed as a false alarm" if false_alarm else "escalated to a human")
         problem = self.notifier.post(inc)
         self._save_incident(inc)
         return _ok(incident_id=inc.id, status=inc.status, card_posted=not problem,
@@ -399,7 +416,6 @@ class NightShift:
         fix = inc.proposed_fix or {}
         name = skill_name_for(inc.alertname, inc.service)
         rb = next((r for r in self.runbooks() if r.skill_name == name), None)
-        fresh = rb is None
         if rb is None:
             rb = Runbook(skill_name=name, alertname=inc.alertname, service=inc.service, root_cause="",
                          fix_commands=[], verification="", symptoms="", learned_from=inc.id)
@@ -410,20 +426,19 @@ class NightShift:
                            "time_to_recover": inc.time_to_recover, "approved_by": inc.approved_by,
                            "recalled": bool(inc.recalled_from)})
         self._save_runbook(rb)
-        return rb, self._write_skill(name, render_skill(rb, inc), fresh)
+        return rb, self._write_skill(name, render_skill(rb, inc))
 
-    def _write_skill(self, name: str, content: str, fresh: bool) -> bool:
+    def _write_skill(self, name: str, content: str) -> bool:
         """Write the runbook as a real Hermes skill through the built-in skill_manage tool."""
         category = str(self.cfg("runbook_category", "night-shift"))
-        create = {"action": "create", "name": name, "content": content, "category": category}
-        patch = {"action": "patch", "name": name, "content": content}
         try:
-            first, second = (create, patch) if fresh else (patch, create)
-            result = self._skill_op(first)
+            result = self._skill_op({"action": "create", "name": name, "content": content, "category": category})
+            if "already exists" in str(result.get("error", "")):
+                result = self._skill_op({"action": "patch", "name": name, "content": content})
+            if result.get("staged"):  # the user's write gate holds it for review: still a success
+                logger.info("Night Shift: runbook skill %s staged for review", name)
             if not result.get("success"):
-                result = self._skill_op(second)
-            if not result.get("success"):
-                logger.warning("Night Shift: runbook skill %s not written: %s", name, result)
+                logger.warning("Night Shift: runbook skill %s not written: %s", name, result.get("error"))
             return bool(result.get("success"))
         except Exception as exc:
             logger.warning("Night Shift: runbook skill %s not written: %s", name, exc)

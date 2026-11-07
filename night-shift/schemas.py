@@ -62,8 +62,9 @@ PROPOSE_FIX = {
         "Propose a remediation for an open incident. It is NOT executed by you. The on-call engineer "
         "sees the diagnosis and the exact commands and approves or denies. After approval Night "
         "Shift runs the commands, checks the verification and writes the runbook. Use the smallest "
-        "fix that addresses the cause, and state the risk honestly. If no fix is justified, call "
-        "nightshift_escalate instead."
+        "fix that addresses the cause, and state the risk honestly. For a known failure, pass "
+        "`runbook` and a one-line diagnosis: everything else comes from the runbook. If no fix is "
+        "justified, call nightshift_escalate instead."
     ),
     "parameters": {
         "type": "object",
@@ -88,9 +89,9 @@ PROPOSE_FIX = {
                 "type": "string",
                 "description": "Read-only shell command that exits 0 once healthy. Use with or instead of verify_promql.",
             },
-            "runbook": {"type": "string", "description": "Name of the learned runbook this fix came from, if any."},
+            "runbook": {"type": "string", "description": "Name of a learned runbook to reuse, from known_runbook."},
         },
-        "required": ["incident_id", "diagnosis", "symptoms", "commands", "risk", "verification"],
+        "required": ["incident_id", "diagnosis"],
     },
 }
 

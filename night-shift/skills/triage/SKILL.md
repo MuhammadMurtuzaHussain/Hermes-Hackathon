@@ -24,8 +24,8 @@ production yourself.
 ## Steps
 1. **Diagnose.** Call `nightshift_diagnose` with the service and alert name.
    - If it returns `duplicate_of`, another incident covers this. Reply with one line and stop.
-   - If it returns `known_runbook` and the evidence fits, go straight to step 3 with that runbook's
-     commands and checks.
+   - If it returns `known_runbook` and the evidence fits, call `nightshift_propose_fix` with that
+     `runbook` and a one-line `diagnosis`, then stop. The commands and checks come from the runbook.
 2. **Investigate.** Otherwise work out what changed, what is saturated and what is failing. Compare
    the deploy history with when the symptoms started. Use `nightshift_query_metrics` to confirm or
    rule out a theory, in a single round of queries where you can.
@@ -33,6 +33,5 @@ production yourself.
    - `commands`: the smallest fix, each command exactly as it should run. No checks in here.
    - `verify_promql`: a comparison that is false now and true once healthy, and/or `verify_command`.
    - `symptoms` and `diagnosis`: these become the runbook, so make them specific.
-   - `runbook`: the runbook name, if one was recalled.
 4. **Stop.** Follow the `instruction` in the result. Night Shift posts the card, and after a human
    approves it runs the commands, checks recovery and writes the runbook. You are done.

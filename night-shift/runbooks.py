@@ -103,6 +103,7 @@ class Runbook:
     learned_from: str
     verify_promql: str = ""
     verify_command: str = ""
+    risk: str = "medium"
     created_at: float = field(default_factory=time.time)
     times_used: int = 0
     failures: int = 0
@@ -189,7 +190,8 @@ passed before this file was written.
 ## Procedure
 1. Confirm the evidence with `nightshift_diagnose`. Do not skip this: the same alert can have a
    different cause.
-2. If it matches, propose this fix with `nightshift_propose_fix`, passing `runbook: {rb.skill_name}`:
+2. If it matches, call `nightshift_propose_fix` with `runbook: {rb.skill_name}` and a one-line
+   diagnosis. Night Shift reuses these commands:
 {fix}
 3. Verify: {one_line(rb.verification)}
 {chr(10).join(f'   - {c}' for c in check)}

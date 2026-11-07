@@ -252,8 +252,10 @@ class LifecycleTests(unittest.TestCase):
         second = json.loads(ns.diagnose({"service": "api", "alertname": "DBConnectionsExhausted"}))
         self.assertEqual(second["known_runbook"]["fix_last_time"], ["docker compose up -d api"])
         self.assertEqual(second["known_runbook"]["verify_promql"], PROPOSAL["verify_promql"])
-        json.loads(ns.propose_fix({"incident_id": second["incident_id"], **PROPOSAL,
-                                   "runbook": second["known_runbook"]["runbook"]}))
+        recalled = json.loads(ns.propose_fix({"incident_id": second["incident_id"], "diagnosis": "same leak again",
+                                              "runbook": second["known_runbook"]["runbook"]}))
+        self.assertEqual(recalled["status"], "fix_proposed")
+        self.assertEqual(ns.get_incident(second["incident_id"]).proposed_fix["commands"], PROPOSAL["commands"])
         ctx.healthy = True
         ns.approve(second["incident_id"], "local")
         latest = ns.get_incident(second["incident_id"])
@@ -262,6 +264,22 @@ class LifecycleTests(unittest.TestCase):
         self.assertEqual(len(ns.runbooks()), 1)
         self.assertEqual(len(ns.runbooks()[0].history), 2)
         self.assertIn("recalled", ns.stats())
+
+    def test_changed_commands_are_not_presented_as_recognised(self):
+        ctx, ns = make_ns()
+        inc_id, _ = open_incident(ns, ctx)
+        ctx.healthy = True
+        ns.approve(inc_id)
+        ctx.healthy = False
+        second = json.loads(ns.diagnose({"service": "api", "alertname": "DBConnectionsExhausted"}))["incident_id"]
+        ns.propose_fix({"incident_id": second, **PROPOSAL, "commands": ["docker rm -f postgres"],
+                        "runbook": "runbook-api-dbconnectionsexhausted"})
+        self.assertEqual(ns.get_incident(second).recalled_from, "")
+
+    def test_a_proposal_without_a_runbook_must_be_complete(self):
+        ctx, ns = make_ns()
+        inc_id = json.loads(ns.diagnose({"service": "api", "alertname": "X"}))["incident_id"]
+        self.assertIn("required", json.loads(ns.propose_fix({"incident_id": inc_id, "diagnosis": "x"}))["error"])
 
     def test_runbook_keeps_only_what_a_human_approved(self):
         ctx, ns = make_ns()
@@ -333,6 +351,7 @@ class LifecycleTests(unittest.TestCase):
         real = json.loads(ns.diagnose({"service": "api", "alertname": "DBConnectionsExhausted"}))
         self.assertNotIn("duplicate_of", real)
         self.assertNotEqual(real["incident_id"], first)
+        ns.escalate({"incident_id": real["incident_id"], "reason": "unclear"})
         again = json.loads(ns.diagnose({"service": "api", "alertname": "ApiErrorRateHigh"}))
         self.assertEqual(again["duplicate_of"], first)
 

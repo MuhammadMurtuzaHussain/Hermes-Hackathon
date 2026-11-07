@@ -165,8 +165,9 @@ class NightShift:
             inc.evidence.append(f"{time.strftime('%H:%M:%S')} diagnose: {', '.join(wanted)}")
             self._save_incident(inc)
             found = self._recall(alertname, service, "")
-            next_step = ("A runbook matches. If the evidence fits, propose its fix now."
-                         if found else "No runbook matches. Work out the cause from the evidence.")
+            next_step = (found["instruction"] if found else
+                         "No runbook matches. Load skill_view('night-shift:triage') if you have not, and work "
+                         "out the cause from the evidence.")
             if (fixed := self._recently_fixed(service)) and fixed.id != inc.id:
                 ago = int(time.time() - fixed.resolved_at)
                 next_step = (f"{fixed.id} on this service was fixed {ago}s ago, and alerts on rates lag behind recovery. "
@@ -214,8 +215,8 @@ class NightShift:
             "root_cause_last_time": rb.root_cause, "symptoms": rb.symptoms, "fix_last_time": rb.fix_commands,
             "verification": rb.verification, "verify_promql": rb.verify_promql, "verify_command": rb.verify_command,
             "times_resolved": len(rb.history), "times_failed": rb.failures, "last_recovery_seconds": last.get("time_to_recover"),
-            "instruction": (f"Confirm the evidence matches, then call nightshift_propose_fix with runbook='{rb.skill_name}' "
-                            "and these same commands and checks. No need to load the skill or investigate further."),
+            "instruction": (f"If the evidence matches, call nightshift_propose_fix with runbook='{rb.skill_name}' and a "
+                            "one-line diagnosis. The commands and checks come from the runbook. Do not investigate further."),
         }
 
     def recall(self, args: dict, **kwargs) -> str:
@@ -231,7 +232,15 @@ class NightShift:
                 return _err("unknown incident_id")
             if inc.status not in {"open", "fix_proposed"}:
                 return _err(f"{inc.id} is {inc.status}, it cannot take a new proposal")
-            commands = [str(c).strip() for c in (args.get("commands") or []) if str(c).strip()]
+            book = next((r for r in self.runbooks() if r.skill_name == args.get("runbook")), None)
+            given = [str(c).strip() for c in (args.get("commands") or []) if str(c).strip()]
+            commands = given or (list(book.fix_commands) if book else [])
+            recalled = bool(book) and commands == book.fix_commands
+            memory = book if recalled else None  # a changed fix is new: it stands on its own
+            value = lambda key, attr=None: args.get(key) or (getattr(memory, attr or key, "") if memory else "")
+            if missing := [k for k, v in (("symptoms", value("symptoms")), ("risk", value("risk")),
+                                          ("verification", value("verification"))) if not v]:
+                return _err(f"{', '.join(missing)} required for a fix that is not a recalled runbook")
             if not commands:
                 return _err("at least one command is required")
             if all(policy.is_read_only(c) for c in commands):
@@ -239,8 +248,8 @@ class NightShift:
                             "verify_command, or call nightshift_escalate if no fix is justified.")
             if sum(len(c) for c in commands) > MAX_COMMAND_CHARS:
                 return _err("The commands are too long for an approver to read. Propose a shorter fix.")
-            promql = (args.get("verify_promql") or "").strip()
-            check = (args.get("verify_command") or "").strip()
+            promql = str(value("verify_promql")).strip()
+            check = str(value("verify_command")).strip()
             if not promql and not check:
                 return _err("A fix needs a recovery check: give verify_promql or verify_command.")
             if promql and not re.search(r"[<>]|==|!=", promql):
@@ -252,15 +261,13 @@ class NightShift:
                             "fails now, or call nightshift_escalate if the service looks healthy.")
             inc.proposed_fix = {
                 "commands": commands, "diagnosis": one_line(args.get("diagnosis"), 1500),
-                "symptoms": one_line(args.get("symptoms"), 600), "risk": str(args.get("risk", "unknown")),
-                "verification": one_line(args.get("verification"), 600),
+                "symptoms": one_line(value("symptoms"), 600), "risk": str(value("risk")),
+                "verification": one_line(value("verification"), 600),
                 "verify_promql": promql, "verify_command": check,
             }
             inc.status, inc.proposed_at = "fix_proposed", time.time()
-            names = {r.skill_name for r in self.runbooks()}
-            if (rb := str(args.get("runbook") or "")) in names:
-                inc.recalled_from = rb
-            inc.mark("fix proposed" + (f" from runbook {rb}" if inc.recalled_from else ""))
+            inc.recalled_from = book.skill_name if recalled else ""
+            inc.mark("fix proposed" + (f" from runbook {inc.recalled_from}" if recalled else ""))
             problem = self.notifier.post(inc)
             self._save_incident(inc)
             with_card = not problem
@@ -422,6 +429,7 @@ class NightShift:
         rb.root_cause, rb.symptoms = fix.get("diagnosis", ""), fix.get("symptoms", "")
         rb.fix_commands, rb.verification = list(fix.get("commands", [])), fix.get("verification", "")
         rb.verify_promql, rb.verify_command = fix.get("verify_promql", ""), fix.get("verify_command", "")
+        rb.risk = fix.get("risk", rb.risk)
         rb.history.append({"incident": inc.id, "at": inc.resolved_at, "time_to_card": inc.time_to_card,
                            "time_to_recover": inc.time_to_recover, "approved_by": inc.approved_by,
                            "recalled": bool(inc.recalled_from)})

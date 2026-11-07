@@ -84,6 +84,7 @@ def register(ctx):
         ctx.register_tool(name=schema["name"], toolset=TOOLSET, schema=schema, handler=handler,
                           emoji="🌙")
 
+    ctx.register_hook("pre_llm_call", ns.pre_llm_call)
     ctx.register_hook("pre_tool_call", ns.pre_tool_call)
 
     def command(raw_args: str, **session) -> str:

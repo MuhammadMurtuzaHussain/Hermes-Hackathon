@@ -281,9 +281,9 @@ def main():
         raise SystemExit(f"FAILED: Slack would have rejected a card: {rejected}")
 
     print(f"\nPASS: {len(results)} of {args.runs} runs recovered for real.\n")
-    print(f"{'run':<5}{'incident':<13}{'alert to card':<15}{'recalled':<10}{'recovery after approval'}")
+    print(f"{'run':<5}{'incident':<13}{'deploy to card':<16}{'recalled':<10}{'recovery after approval'}")
     for r in results:
-        print(f"{r['run']:<5}{r['incident']:<13}{str(r['card_after_deploy']) + 's':<15}{str(r['recalled']):<10}{r['recovery']}s")
+        print(f"{r['run']:<5}{r['incident']:<13}{str(r['card_after_deploy']) + 's':<16}{str(r['recalled']):<10}{r['recovery']}s")
     print("\n" + hermes("nightshift", "stats"))
     skill = Path(os.environ.get("NIGHTSHIFT_HERMES_HOME", Path.home() / ".hermes-nightshift"))
     found = list(skill.glob("skills/**/runbook-api-*/SKILL.md"))

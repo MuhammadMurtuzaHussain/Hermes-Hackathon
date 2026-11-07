@@ -47,7 +47,7 @@ READ_ONLY_SUBCOMMANDS = {
 # Read-only here means "changes nothing", but a secret in a tool result is also a leak: it
 # reaches the model and the chat. These paths need a human even for a plain cat.
 SENSITIVE = re.compile(
-    r"(\.env\b|\.ssh/|id_rsa|id_ed25519|\.aws/|\.kube/config|\.netrc|\.hermes/|/etc/shadow"
+    r"(\.env\b|\.ssh/|id_rsa|id_ed25519|\.aws/|\.kube/config|\.netrc|\.hermes/|\bshadow\b"
     r"|auth\.json|credentials|\bsecrets?\b)", re.I)
 
 _SQL_START = re.compile(r"^\s*(select|show|explain)\b", re.I)
@@ -282,6 +282,24 @@ def _segment_is_read_only(segment: str) -> bool:
             return False
         return sub in READ_ONLY_SUBCOMMANDS[program]
     return program in READ_ONLY_PROGRAMS
+
+
+# Fixes a one-tap approval must never carry, however good the reason. Losing data or a whole
+# environment is a decision for a person at a keyboard, so these never reach an Approve button.
+DESTRUCTIVE = re.compile(
+    r"(\brm\s+(-\w*\s+)*-\w*[rf]|\bmkfs\b|\bdd\s+.*\bof=|\bshred\b|\bfdisk\b|>\s*/dev/sd"
+    r"|\bdrop\s+(table|database|schema|role|user)\b|\btruncate\s+|\bdelete\s+from\b"
+    r"|\bdocker\s+(volume\s+rm|volume\s+prune|system\s+prune|image\s+prune|rmi\b)"
+    r"|\bdocker\s+(compose\s+)?(rm\b|down\s+.*(-v|--volumes)\b)"
+    r"|\bkubectl\s+delete\s+(ns|namespace|pv|pvc|deployment|statefulset|node)\b"
+    r"|\bhelm\s+(uninstall|delete)\b|\bterraform\s+destroy\b"
+    r"|\bgit\s+(push\s+.*(-f\b|--force)|reset\s+--hard|clean\s+-\w*f)"
+    r"|\bshutdown\b|\breboot\b|\bhalt\b|\bpoweroff\b|\bcurl\b.*\|\s*(ba|z)?sh\b|\bwget\b.*\|\s*(ba|z)?sh\b)",
+    re.I)
+
+
+def is_destructive(command: str) -> bool:
+    return bool(DESTRUCTIVE.search(command or ""))
 
 
 def is_read_only(command: str) -> bool:

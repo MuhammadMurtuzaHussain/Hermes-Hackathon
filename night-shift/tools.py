@@ -27,6 +27,7 @@ from .runbooks import ACTIVE, WORKING, Incident, Runbook, best_match, duration, 
 
 logger = logging.getLogger(__name__)
 
+ALERT_MARKER = "NIGHT SHIFT ALERT"  # the webhook route's prompt starts with this
 MAX_INCIDENTS = 200       # resolved incidents kept in plugin state
 MAX_COMMAND_CHARS = 2500  # the approver must be able to read everything that will run
 CHECK_OUTPUT_CHARS = 2500
@@ -255,6 +256,9 @@ class NightShift:
             if all(policy.is_read_only(c) for c in commands):
                 return _err("These commands change nothing, so they are not a fix. Put checks in verify_promql or "
                             "verify_command, or call nightshift_escalate if no fix is justified.")
+            if any(policy.is_destructive(c) for c in commands):
+                return _err("Night Shift does not offer destructive commands for one-tap approval. Propose "
+                            "something reversible, or call nightshift_escalate so a person decides.")
             if sum(len(c) for c in commands) > MAX_COMMAND_CHARS:
                 return _err("The commands are too long for an approver to read. Propose a shorter fix.")
             promql = str(value("verify_promql")).strip()
@@ -546,20 +550,21 @@ class NightShift:
         return f"Forgot {len(targets)} runbook(s)." + (" Incident history cleared." if what == "all" else "")
 
     # ---- guard hook ---------------------------------------------------------
-    def _is_alert_run(self) -> bool:
-        """An alert-triggered run is guarded from its very first tool call, not just after diagnose."""
-        try:
-            from gateway.session_context import get_session_env
-            user = get_session_env("HERMES_SESSION_USER_ID", "")
-        except Exception:
-            return False
-        return user == f"webhook:{self.cfg('webhook_route', 'nightshift')}"
+    def pre_llm_call(self, session_id: str = "", user_message: str = "", platform: str = "", **_):
+        """Guard an alert run from before its first tool call, not just after diagnose."""
+        if platform == "webhook" and session_id and ALERT_MARKER in str(user_message or ""):
+            with self._lock:
+                self.guarded_sessions.add(session_id)
+            logger.info("Night Shift: guarding alert run %s", session_id)
 
     def pre_tool_call(self, tool_name: str = "", args: dict | None = None, task_id: str = "", **kwargs):
         mode = str(self.cfg("guard_mode", "incident"))
         if mode == "off":
             return None
         ids = {i for i in (task_id, kwargs.get("session_id", "")) if i}
-        if mode == "incident" and not (ids & self.guarded_sessions) and not self._is_alert_run():
+        if mode == "incident" and not (ids & self.guarded_sessions):
             return None
-        return policy.evaluate(tool_name, args or {})
+        directive = policy.evaluate(tool_name, args or {})
+        if directive:
+            logger.info("Night Shift guard: %s %s in %s", directive["action"], tool_name, sorted(ids))
+        return directive

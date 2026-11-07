@@ -1,8 +1,8 @@
 name: night-shift
-version: 0.2.0
+version: 1.0.0
 manifest_version: 2
 api_version: 1
-requires_hermes: ">=0.22.0"
+requires_hermes: ">=0.22.5"
 description: >-
   An on-call engineer that never sleeps. Night Shift triages infrastructure
   alerts with read-only diagnostics, proposes fixes behind human approval, and
@@ -21,6 +21,7 @@ provides_tools:
   - nightshift_resolve
 
 provides_hooks:
+  - pre_llm_call
   - pre_tool_call
 
 config_schema:
@@ -52,10 +53,6 @@ config_schema:
     type: str
     default: "incident"
     description: "'incident' guards alert runs and any session with an open incident; 'always' guards every session; 'off' disables the guard."
-  webhook_route:
-    type: str
-    default: "nightshift"
-    description: "Name of the webhook route whose runs are guarded from their first tool call."
   runbook_category:
     type: str
     default: "night-shift"

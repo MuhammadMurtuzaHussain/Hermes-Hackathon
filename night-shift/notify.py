@@ -72,7 +72,7 @@ def slack_blocks(inc: Incident) -> list[dict]:
         "text": {"type": "plain_text", "text": f"🌙 {inc.id} · {inc.alertname} on {inc.service}"[:150]},
     }]
     if inc.recalled_from:
-        blocks.append(_section(f"🧠 *Recognised.* Known failure, runbook `{esc(inc.recalled_from)}`."))
+        blocks.append(_section(f"🧠 *Recognised.* Runbook `{esc(inc.recalled_from)}`. {esc(inc.track_record)}".strip()))
     if fix:
         blocks.append(_section(f"*Cause*\n{esc(fix.get('diagnosis', ''))}"))
         commands = "\n".join(esc(c) for c in fix.get("commands", []))

@@ -317,7 +317,8 @@ def evaluate(tool_name: str, args: dict) -> dict | None:
             "message": (
                 "Night Shift guard: this command is not on the read-only list. Investigation must not "
                 f"change anything.\n\n    {command}\n\n"
-                "Propose changes with nightshift_propose_fix instead."
+                "To read container details use docker inspect with --format, since a bare inspect prints "
+                "secrets. To change something, use nightshift_propose_fix."
             ),
         }
     return {

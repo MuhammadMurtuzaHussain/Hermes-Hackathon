@@ -313,6 +313,23 @@ class LifecycleTests(unittest.TestCase):
         self.assertNotIn("docker rm b", ran)
         self.assertEqual(ns.get_incident(inc_id).status, "fix_failed")
 
+    def test_a_command_hermes_wants_in_the_background_still_runs(self):
+        ctx, ns = make_ns()
+        original = ctx.dispatch_tool
+
+        def dispatch(name, args, **kw):
+            if name == "terminal" and "docker compose up" in args["command"] and not args.get("background"):
+                ctx.calls.append((name, args))
+                return json.dumps({"output": "", "exit_code": -1, "error": "Run it with background=true, verify readiness"})
+            return original(name, args, **kw)
+
+        ctx.dispatch_tool = dispatch
+        inc_id, _ = open_incident(ns, ctx)
+        ctx.healthy = True
+        ns.approve(inc_id)
+        self.assertEqual(ns.get_incident(inc_id).status, "resolved")
+        self.assertTrue(any(a.get("background") for n, a in ctx.calls if n == "terminal"))
+
     def test_double_approval_runs_once(self):
         ctx, ns = make_ns()
         inc_id, _ = open_incident(ns, ctx)

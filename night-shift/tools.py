@@ -92,18 +92,25 @@ class NightShift:
         prefix = str(self.cfg("docker_host_prefix", "") or "").strip()
         return f"{prefix} {shlex.quote(command)}" if prefix else command
 
+    def _terminal(self, args: dict) -> dict:
+        raw = self.ctx.dispatch_tool("terminal", args)
+        parsed = json.loads(raw) if isinstance(raw, str) else raw
+        return parsed if isinstance(parsed, dict) else {"output": str(parsed), "exit_code": 0}
+
     def _exec(self, command: str, timeout: int = 30) -> tuple[int, str]:
         """Run through Hermes's terminal tool, which keeps its own safety checks. Returns (exit, output)."""
         try:
-            raw = self.ctx.dispatch_tool("terminal", {"command": self._full(command), "timeout": timeout})
-            parsed = json.loads(raw) if isinstance(raw, str) else raw
-            if not isinstance(parsed, dict):
-                return 0, str(parsed)
-            text = str(parsed.get("output") or "")
-            if parsed.get("error"):
-                text += f"\n(error: {parsed['error']})"
-            code = parsed.get("exit_code")
-            failed = code not in (None, 0) or (code is None and parsed.get("error"))
+            args = {"command": self._full(command), "timeout": timeout}
+            result = self._terminal(args)
+            if "background=true" in str(result.get("error") or ""):
+                # Hermes refuses things like `docker compose up` in the foreground and says to run them
+                # in the background and verify readiness. The recovery check is that verification.
+                result = self._terminal({**args, "background": True})
+            text = str(result.get("output") or "")
+            if result.get("error"):
+                text += f"\n(error: {result['error']})"
+            code = result.get("exit_code")
+            failed = code not in (None, 0) or (code is None and result.get("error"))
             return (int(code or 1) if failed else 0), text.strip()
         except Exception as exc:  # one failed check must not sink the triage
             return 1, f"(check failed: {exc})"
@@ -117,7 +124,9 @@ class NightShift:
     def checks_for(self, service: str) -> dict[str, str]:
         s = shlex.quote(service)
         checks = {
-            "status": f"docker ps -a --filter name={s} --format '{{{{.Names}}}} {{{{.Status}}}} {{{{.Image}}}}'",
+            "status": (f"docker ps -a --filter name={s} --format '{{{{.Names}}}} {{{{.Status}}}} {{{{.Image}}}}'; "
+                       f"docker inspect --format 'exit={{{{.State.ExitCode}}}} oom_killed={{{{.State.OOMKilled}}}} "
+                       f"restarts={{{{.RestartCount}}}} finished={{{{.State.FinishedAt}}}}' {s}"),
             "logs": f"docker logs --tail 40 --timestamps {s} 2>&1 | tail -n 40",
             "resources": f"docker stats --no-stream --format '{{{{.Name}}}} cpu={{{{.CPUPerc}}}} mem={{{{.MemPerc}}}}' {s}",
             "disk": "df -h",
@@ -267,6 +276,10 @@ class NightShift:
             }
             inc.status, inc.proposed_at = "fix_proposed", time.time()
             inc.recalled_from = book.skill_name if recalled else ""
+            if recalled and book.history:
+                last = book.history[-1].get("time_to_recover")
+                inc.track_record = (f"Worked {len(book.history)}x before, {book.failures} failed. "
+                                    f"Last recovery {duration(last)} after approval.")
             inc.mark("fix proposed" + (f" from runbook {inc.recalled_from}" if recalled else ""))
             problem = self.notifier.post(inc)
             self._save_incident(inc)
@@ -359,10 +372,12 @@ class NightShift:
                 inc.mark(f"ran: {cmd} (exit {code})")
                 log.append(f"$ {cmd}\n{out[-800:]}" + (f"\n(exit code {code})" if code else ""))
                 if code:
-                    return self._fail(inc, f"Command failed: `{cmd}` (exit {code}). Later commands were not run.", log)
+                    reason = one_line(out, 300) or "no output"
+                    return self._fail(inc, f"Command failed (exit {code}): {reason}. Later commands were not run.", log)
             if not self._await_recovery(fix):
                 wait = int(self.cfg("verify_timeout_seconds", 90))
-                return self._fail(inc, f"The fix ran but the recovery check did not pass within {wait}s.", log)
+                check = fix.get("verify_promql") or fix.get("verify_command")
+                return self._fail(inc, f"The fix ran but this recovery check did not pass within {wait}s: {check}", log)
             return self._finish(inc, log)
         except Exception as exc:
             logger.exception("Night Shift run_fix failed for %s", inc.id)

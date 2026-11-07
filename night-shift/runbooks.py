@@ -70,6 +70,7 @@ class Incident:
     recalled_from: str = ""
     escalation: str = ""
     outcome: str = ""
+    track_record: str = ""
     card: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:

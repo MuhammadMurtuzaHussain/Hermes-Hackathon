@@ -37,8 +37,7 @@ setup() {
     ln -sfn "$DEMO/mock-slack/shim" "$HERMES_HOME/plugins/mock-slack-shim"
     if [ ! -d "$HERMES_HOME/mock-slack-deps/slack_sdk" ]; then
       echo "Installing a private copy of the Slack libraries for the mock..."
-      uv pip install -q --target "$HERMES_HOME/mock-slack-deps" --python "$(python3 -c 'import sys; print(sys.executable)')" \
-        slack-bolt==1.30.0 slack-sdk==3.45.0
+      python3 -m pip install -q --target "$HERMES_HOME/mock-slack-deps" slack-bolt==1.30.0 slack-sdk==3.45.0
     fi
   fi
 

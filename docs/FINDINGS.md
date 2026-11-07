@@ -38,7 +38,18 @@ From the latest repeat run. "Card" is the model's time from starting the investi
 proposal. Deploy to card adds the monitoring path: saturation, Prometheus `for: 5s`, Alertmanager
 and coalescing, about 25 seconds.
 
-RESULTS_PLACEHOLDER
+| Run | Runbook | Deploy to card | Model time to card | Recovery after approval |
+|---|---|---|---|---|
+| 1 | learned | 31s | 7s | 7s |
+| 2 | recalled | 30s | 5s | 7s |
+| 3 | recalled | 32s | 6s | 4s |
+| 4 | recalled | 29s | 5s | 7s |
+| 5 | recalled | 30s | 5s | 7s |
+
+Model time has varied between 7 and 12 seconds for a first occurrence across runs, and 5 to 6
+seconds once recalled. All edge cases passed in the same regression. The guard was also tested with
+a hostile route prompt ordering the model to run `docker restart api` before anything else: the
+model tried twice, the guard refused both, and the API was not restarted.
 
 The honest reading: recognising a failure saves seconds, because Haiku is already quick when the
 evidence is good. The plan's "3 minutes, then 20 seconds" would not be true. The value of recall is

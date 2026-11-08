@@ -124,20 +124,20 @@ const fade = (v, a, b, d = 0.5) => clamp(Math.min((v - a) / d, (b - v) / d), 0, 
 
 // Each scene maps video time v to recorded time r. Anything faster than 1x says so on screen.
 const SCENES = [
-  { a: 0, b: 5, kind: 'hook' },
-  { a: 5, b: 11, kind: 'term', cap: 'A bad release ships. Every request now leaks a database connection.' },
-  { a: 11, b: 22, kind: 'live', r0: T.deploy1, r1: T.card1, cap: 'Prometheus fires. Hermes takes the alert and investigates, read-only. Nobody is awake.' },
-  { a: 22, b: 33, kind: 'read', r0: T.card1 + 0.6, r1: T.approve1 - 0.01, cap: 'One card: the cause, the exact command, the risk. One question.', cap2: 'I read the command, and tap Approve.' },
-  { a: 33, b: 40, kind: 'live', r0: T.approve1, r1: T.resolved1 + 0.5, cap: 'It runs exactly what I approved, then proves the service recovered.' },
-  { a: 40, b: 48, kind: 'file', cap: 'Then it writes the runbook as a Hermes skill. Only commands a human approved and a check verified.' },
-  { a: 48, b: 51, kind: 'chapter', text: 'The next night. Same failure.' },
-  { a: 51, b: 62, kind: 'live', r0: T.deploy2, r1: T.card2 + 6, hold: T.card2, cap: 'It recognises it, and shows the fix’s track record.' },
-  { a: 62, b: 67, kind: 'live', r0: T.stranger, r1: T.approve2 - 0.01, cap: 'Someone not on the approvers list taps Approve. Refused. Nothing runs.' },
-  { a: 67, b: 73, kind: 'live', r0: T.approve2, r1: T.resolved2 + 0.5, cap: 'The on-call engineer approves. Fixed again, and the runbook gets better.' },
-  { a: 73, b: 80, kind: 'guard', cap: 'A poisoned alert told it to restart the API first. It tried twice. The guard is code, not a prompt.' },
-  { a: 80, b: 87, kind: 'outro' },
+  { a: 0, b: 6, kind: 'hook' },
+  { a: 6, b: 12, kind: 'term', cap: 'A bad release ships. Every request now leaks a database connection.' },
+  { a: 12, b: 23, kind: 'live', r0: T.deploy1, r1: T.card1, cap: 'Prometheus fires. Hermes takes the alert and investigates, read-only. Nobody is awake.' },
+  { a: 23, b: 35, kind: 'read', r0: T.card1 + 0.6, r1: T.approve1 - 0.01, cap: 'One card: the cause, the exact command, the risk. One question.', cap2: 'I read the command, and tap Approve.' },
+  { a: 35, b: 42, kind: 'live', r0: T.approve1, r1: T.resolved1 + 0.5, cap: 'It runs exactly what I approved, then proves the service recovered.' },
+  { a: 42, b: 50, kind: 'file', cap: 'Then it writes the runbook as a Hermes skill. Only commands a human approved and a check verified.' },
+  { a: 50, b: 53, kind: 'chapter', text: 'The next night. Same failure.' },
+  { a: 53, b: 64, kind: 'live', r0: T.deploy2, r1: T.card2 + 6, hold: T.card2, cap: 'It recognises it, and shows the fix’s track record.' },
+  { a: 64, b: 70, kind: 'live', r0: T.stranger, r1: T.approve2 - 0.01, cap: 'Someone not on the approvers list taps Approve. Refused. Nothing runs.' },
+  { a: 70, b: 75, kind: 'live', r0: T.approve2, r1: T.resolved2 + 0.5, cap: 'The on-call engineer approves. Fixed again, and the runbook gets better.' },
+  { a: 75, b: 83, kind: 'guard', cap: 'A poisoned alert told it to restart the API first. It tried twice. The guard is code, not a prompt.' },
+  { a: 83, b: 89.5, kind: 'outro' },
 ];
-const DURATION = 87;
+const DURATION = 89.5;
 
 function mrkdwn(t) {
   return String(t ?? '').replace(/```([\s\S]*?)```/g, '<pre>$1</pre>').replace(/`([^`\n]+)`/g, '<code>$1</code>')

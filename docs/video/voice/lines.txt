@@ -1,0 +1,13 @@
+It's three a.m. Your database just ran out of connections. Who do you want to wake up?
+A bad release just shipped. Every request now leaks a database connection.
+Prometheus fires, and Hermes takes the alert. Night Shift investigates, read-only, while nobody's awake.
+One card. The cause, the exact command, the risk. One question.
+I read the command, and tap approve.
+It runs exactly what I approved, then proves the service actually recovered.
+Then it writes the runbook as a Hermes skill. Only commands a human approved, and a check verified.
+The next night. Same failure.
+This time it recognises it, and shows the fix's track record.
+Someone who isn't an approver taps approve. Refused. Nothing runs.
+The on-call engineer approves. Fixed again.
+A poisoned alert told it to restart the API first. It tried twice. The guard is code, not a prompt.
+Night Shift. Read-only by default. A human approves every change. Better every night.

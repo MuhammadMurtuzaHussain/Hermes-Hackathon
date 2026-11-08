@@ -12,8 +12,11 @@ PR and the X post.
 4. ~~Make the video.~~ [`docs/video/night-shift-demo.mp4`](../video/night-shift-demo.mp4), 87 seconds,
    drawn from a real run. A recording of your own, following [`demo-script.md`](demo-script.md),
    would be a stronger alternative if there is time.
-5. **Post on X**, with the text in [`x-post.md`](x-post.md).
-6. **Submit the form**, with [`form-answers.md`](form-answers.md).
+5. ~~Post on X.~~ [x.com/hussainreflects/status/2119263040092930144](https://x.com/hussainreflects/status/2119263040092930144), 8 Nov.
+6. ~~Submit the form.~~ Submitted 8 Nov; Typeform confirmed "Submission Received".
+
+What is left: watch the catalog PR for CI and reviewer comments. A fork's PR may need a maintainer to
+approve its workflow run before CI starts.
 
 ## Before pinning
 

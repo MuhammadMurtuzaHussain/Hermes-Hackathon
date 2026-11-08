@@ -8,6 +8,9 @@ stack to break, so you can watch the whole loop in about five minutes.
 
 ![Night Shift's incident card](docs/screenshots/card-proposed.png)
 
+Watch the 87-second demo: [`docs/video/night-shift-demo.mp4`](docs/video/night-shift-demo.mp4). It is
+drawn from a real run; [`docs/video/`](docs/video/README.md) explains how.
+
 ## See it work
 
 You need Docker, a Hermes install and an Anthropic API key (`ANTHROPIC_API_KEY`, or already in

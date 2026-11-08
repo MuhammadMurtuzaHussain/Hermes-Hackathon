@@ -6,12 +6,12 @@ treat this as the deadline.
 Everything here is ready except what only you can do. Order matters, because the form asks for the
 PR and the X post.
 
-1. **Make the repo public, and merge the work to `main`.** Nothing has been made public.
-2. **Pin the commit.** Put its full SHA in [`catalog-entry.yaml`](catalog-entry.yaml), in place of
-   `<SHA>`, in both places.
-3. **Open the catalog PR**, with [`catalog-pr.md`](catalog-pr.md) as the description.
-4. **Record the video**, following [`demo-script.md`](demo-script.md). For real Slack, follow
-   [`slack-setup.md`](slack-setup.md) first. The mock at <http://localhost:8770> also works.
+1. ~~Make the repo public, and merge the work to `main`.~~ Done 8 Nov.
+2. ~~Pin the commit.~~ `7cd0473493bb21f756ae8c4465b18476a612c7a0`.
+3. ~~Open the catalog PR.~~ [NousResearch/hermes-agent#151024](https://github.com/NousResearch/hermes-agent/pull/151024).
+4. ~~Make the video.~~ [`docs/video/night-shift-demo.mp4`](../video/night-shift-demo.mp4), 87 seconds,
+   drawn from a real run. A recording of your own, following [`demo-script.md`](demo-script.md),
+   would be a stronger alternative if there is time.
 5. **Post on X**, with the text in [`x-post.md`](x-post.md).
 6. **Submit the form**, with [`form-answers.md`](form-answers.md).
 

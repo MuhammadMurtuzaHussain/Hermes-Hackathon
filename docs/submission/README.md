@@ -7,7 +7,7 @@ Everything here is ready except what only you can do. Order matters, because the
 PR and the X post.
 
 1. ~~Make the repo public, and merge the work to `main`.~~ Done 8 Nov.
-2. ~~Pin the commit.~~ `7cd0473493bb21f756ae8c4465b18476a612c7a0`.
+2. ~~Pin the commit.~~ `857ff062407f620f16edd2824bbe61570c2a4cfb`, re-pinned after the maintainer review (first pin `7cd04734`).
 3. ~~Open the catalog PR.~~ [NousResearch/hermes-agent#151024](https://github.com/NousResearch/hermes-agent/pull/151024).
 4. ~~Make the video.~~ [`docs/video/night-shift-demo.mp4`](../video/night-shift-demo.mp4), 87 seconds,
    drawn from a real run. A recording of your own, following [`demo-script.md`](demo-script.md),

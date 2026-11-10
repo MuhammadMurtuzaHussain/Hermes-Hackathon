@@ -51,6 +51,13 @@ def block_problem(blocks):
                     return "button action_id or value too long"
                 if el.get("style") not in (None, "primary", "danger"):
                     return "bad button style"
+                if confirm := el.get("confirm"):
+                    if not 1 <= len(confirm.get("title", {}).get("text", "")) <= 100:
+                        return "confirm title must be 1 to 100 characters"
+                    if not 1 <= len(confirm.get("text", {}).get("text", "")) <= 300:
+                        return "confirm text must be 1 to 300 characters"
+                    if any(len(confirm.get(k, {}).get("text", "")) > 30 for k in ("confirm", "deny")):
+                        return "confirm buttons must be at most 30 characters"
         else:
             return f"unsupported block type {kind}"
     return ""

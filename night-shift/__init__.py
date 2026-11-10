@@ -10,7 +10,7 @@ from .notify import APPROVE_ACTION, DENY_ACTION
 from .tools import NightShift
 
 TOOLSET = "night-shift"
-USAGE = ("Usage: /nightshift [status | stats | show <id> | approve <id> | deny <id> | "
+USAGE = ("Usage: /nightshift [status | stats | show <id> | approve <id> [code] | deny <id> | "
          "forget <runbook|all>]")
 
 
@@ -29,6 +29,10 @@ def _command(ns: NightShift, raw_args: str, *, platform: str = "", source=None, 
         user = getattr(source, "user_id", "") if source is not None else ""
         actor = f"{platform}:{user}" if user else "local"
         if verb == "approve":
+            # Two steps: the first shows the stored commands verbatim, the second must quote their
+            # fingerprint. Nobody approves from a model's summary, and a changed fix needs a new code.
+            if len(rest) < 2 or rest[1].lower() != ns.approval_code(rest[0]):
+                return ns.preview_approval(rest[0])
             return ns.approve(rest[0], actor)
         if verb == "deny":
             return ns.deny(rest[0], actor)
@@ -68,6 +72,7 @@ def _cli_setup(parser) -> None:
     parser.add_argument("action", nargs="?", default="status",
                         help="status, stats, show <id>, approve <id>, deny <id>, forget <runbook|all>")
     parser.add_argument("target", nargs="?", default="")
+    parser.add_argument("code", nargs="?", default="", help="for approve: the code it showed you")
 
 
 def register(ctx):
@@ -92,10 +97,10 @@ def register(ctx):
 
     ctx.register_command("nightshift", command,
                          description="Night Shift incidents: status, stats, approve or deny a fix",
-                         args_hint="[status|stats|show <id>|approve <id>|deny <id>|forget <name>]")
+                         args_hint="[status|stats|show <id>|approve <id> [code]|deny <id>|forget <name>]")
 
     def cli(args) -> None:
-        print(_command(ns, f"{args.action} {args.target}".strip(), platform="cli"))
+        print(_command(ns, f"{args.action} {args.target} {args.code}".strip(), platform="cli"))
 
     ctx.register_cli_command("nightshift", help="Night Shift incidents: status, stats, approve, deny",
                              setup_fn=_cli_setup, handler_fn=cli)

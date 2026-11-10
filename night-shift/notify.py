@@ -22,6 +22,9 @@ logger = logging.getLogger(__name__)
 APPROVE_ACTION = "nightshift_approve"
 DENY_ACTION = "nightshift_deny"
 POST_TIMEOUT_SECONDS = 15
+SECTION_LIMIT = 3000  # Slack's limit for a section's text. The fix box is refused past it, never cut.
+CONFIRM_LIMIT = 300   # Slack's limit for a confirm dialog's text
+FENCE = "```"
 
 _RISK_EMOJI = {"low": "🟢", "medium": "🟠", "high": "🔴"}
 
@@ -32,7 +35,44 @@ def esc(text: str) -> str:
 
 
 def _section(text: str) -> dict:
-    return {"type": "section", "text": {"type": "mrkdwn", "text": text[:3000]}}
+    """Prose only: a long cause or outcome may be clipped. Commands never go through here."""
+    return {"type": "section", "text": {"type": "mrkdwn", "text": text[:SECTION_LIMIT]}}
+
+
+def _plural(n: int) -> str:
+    return f"{n} command{'' if n == 1 else 's'}"
+
+
+def fix_text(commands: list[str], risk: str) -> str:
+    """The fix box exactly as Slack receives it: every command, escaped, in one code block."""
+    shown = "\n".join(esc(c) for c in commands)
+    return (f"*Fix* · {_plural(len(commands))} · risk: {_RISK_EMOJI.get(risk, '⚪')} {esc(risk)}\n"
+            f"{FENCE}\n{shown}\n{FENCE}")
+
+
+def unshowable(commands: list[str], risk: str = "medium") -> str:
+    """Why these commands cannot be shown in full on the card, or ''.
+
+    The approver must see every command that runs. A fence inside a command would close the code
+    block early, and a box over Slack's limit would be rejected or cut, so both are refused here,
+    measured on the escaped text that is actually sent.
+    """
+    if any(FENCE in str(c) for c in commands):
+        return "A command contains ``` and would break out of the code block on the card."
+    size = len(fix_text(commands, risk))
+    if size > SECTION_LIMIT:
+        return (f"The commands take {size} characters once escaped for Slack, over its {SECTION_LIMIT}-character "
+                "limit, so the approver could not see them all.")
+    return ""
+
+
+def confirm_text(commands: list[str]) -> str:
+    """The confirm dialog repeats the commands when they fit, and otherwise points at the box above,
+    which unshowable() guarantees is complete."""
+    listed = f"Runs exactly:\n{FENCE}\n" + "\n".join(esc(c) for c in commands) + f"\n{FENCE}"
+    if len(listed) <= CONFIRM_LIMIT:
+        return listed
+    return f"Runs the {_plural(len(commands))} in the Fix box, exactly as shown there, and nothing else."
 
 
 def _context(text: str) -> dict:
@@ -43,7 +83,7 @@ def fallback_text(inc: Incident) -> str:
     """Plain text for notifications and for platforms without blocks."""
     head = f"{inc.id} · {inc.alertname} on {inc.service}"
     if inc.status == "fix_proposed":
-        return f"{head}: fix proposed. /nightshift approve {inc.id} or /nightshift deny {inc.id}"
+        return f"{head}: fix proposed. /nightshift show {inc.id} to read it, then approve or deny."
     return f"{head}: {inc.status.replace('_', ' ')}. {inc.outcome}".strip()
 
 
@@ -85,24 +125,30 @@ def slack_blocks(inc: Incident) -> list[dict]:
         blocks.append(_section(f"🧠 *Recognised.* Runbook `{esc(inc.recalled_from)}`. {esc(inc.track_record)}".strip()))
     if fix:
         blocks.append(_section(f"*Cause*\n{esc(brief(fix.get('diagnosis', '')))}"))
-        commands = "\n".join(esc(c) for c in fix.get("commands", []))
+        commands = [str(c) for c in fix.get("commands", [])]
         risk = str(fix.get("risk", "unknown"))
-        blocks.append(_section(f"*Fix* · risk: {_RISK_EMOJI.get(risk, '⚪')} {esc(risk)}\n```{commands}```"))
+        if hidden := unshowable(commands, risk):
+            # Only reachable for a proposal stored before this check existed: propose_fix refuses these.
+            blocks.append(_section(f"*Fix* · {_plural(len(commands))}\n⚠️ {esc(hidden)} It cannot be approved "
+                                   f"from Slack. Read it with `/nightshift show {esc(inc.id)}`."))
+        else:
+            blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": fix_text(commands, risk)}})
         blocks.append(_context(f"Recovery check: {esc(brief(fix.get('verification', ''), 200))}"))
     blocks.append(_section(status_line(inc)))
     if inc.status == "fix_proposed":
-        blocks.append({"type": "actions", "block_id": f"nightshift:{inc.id}", "elements": [
+        commands = [str(c) for c in fix.get("commands", [])]
+        buttons = [] if unshowable(commands, str(fix.get("risk", ""))) else [
             {"type": "button", "action_id": APPROVE_ACTION, "style": "primary", "value": inc.id,
              "text": {"type": "plain_text", "text": "Approve fix"},
              "confirm": {
                  "title": {"type": "plain_text", "text": "Run this fix?"},
-                 "text": {"type": "mrkdwn", "text": f"Runs {len(fix.get('commands', []))} command(s) as shown."},
+                 "text": {"type": "mrkdwn", "text": confirm_text(commands)},
                  "confirm": {"type": "plain_text", "text": "Run it"},
                  "deny": {"type": "plain_text", "text": "Cancel"},
-             }},
-            {"type": "button", "action_id": DENY_ACTION, "style": "danger", "value": inc.id,
-             "text": {"type": "plain_text", "text": "Deny"}},
-        ]})
+             }}]
+        buttons.append({"type": "button", "action_id": DENY_ACTION, "style": "danger", "value": inc.id,
+                        "text": {"type": "plain_text", "text": "Deny"}})
+        blocks.append({"type": "actions", "block_id": f"nightshift:{inc.id}", "elements": buttons})
     return blocks
 
 

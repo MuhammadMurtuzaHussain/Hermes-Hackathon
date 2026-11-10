@@ -215,7 +215,8 @@ class ProposalRulesTests(unittest.TestCase):
 
     def test_unreadably_long_fixes_are_refused(self):
         ctx, ns = make_ns()
-        self.assertIn("too long", open_incident(ns, ctx, commands=["docker restart " + "x" * 3000])[1]["error"])
+        self.assertIn("must see every command",
+                      open_incident(ns, ctx, commands=["docker restart " + "x" * 3000])[1]["error"])
 
     def test_destructive_fixes_never_reach_a_button(self):
         for cmd in ["rm -rf /var/lib/postgresql", "rm -fr x", "docker volume rm db", "docker compose down -v",
@@ -492,6 +493,98 @@ class SlackCardTests(unittest.TestCase):
         asyncio.run(handler(ack, body, {"value": "INC-404"}))
         self.assertEqual(acked, [True], "Slack must get its ack even for a refused click")
         self.assertEqual(ctx.calls, [], "a stranger's click runs nothing")
+
+
+def section_texts(blocks):
+    return [b["text"]["text"] for b in blocks if b["type"] == "section"]
+
+
+def ran(ctx, command):
+    return any(name == "terminal" and args.get("command") == command for name, args in ctx.calls)
+
+
+class ApproverSeesEveryCommandTests(unittest.TestCase):
+    """Review of the catalog PR: the approver must see every command that runs."""
+
+    def test_length_is_measured_after_escaping(self):
+        padded = "docker restart api # " + "<" * 800  # 821 characters raw, over 3000 once escaped
+        self.assertLess(len(padded), 2500)
+        ctx, ns = make_ns()
+        inc_id, result = open_incident(ns, ctx, commands=["docker compose up -d api", padded])
+        self.assertIn("once escaped", result["error"])
+        self.assertEqual(ns.get_incident(inc_id).status, "open")
+
+    def test_a_code_fence_in_a_command_is_refused(self):
+        for cmd in ["docker restart api ```", "docker restart api\n```\n*nothing else runs*"]:
+            ctx, ns = make_ns()
+            self.assertIn("```", open_incident(ns, ctx, commands=[cmd])[1]["error"], cmd)
+
+    def test_risk_must_be_one_of_three(self):
+        ctx, ns = make_ns()
+        self.assertIn("risk must be", open_incident(ns, ctx, risk="low " + "&" * 3000)[1]["error"])
+
+    def test_every_accepted_fix_is_shown_whole_on_the_card(self):
+        commands = [f"docker restart api-{n} # " + "&<>" * 50 for n in range(3)]
+        ctx, ns = make_ns()
+        inc_id, result = open_incident(ns, ctx, commands=commands)
+        self.assertEqual(result["status"], "fix_proposed")
+        blocks = notify.slack_blocks(ns.get_incident(inc_id))
+        fix = next(t for t in section_texts(blocks) if t.startswith("*Fix*"))
+        for cmd in commands:
+            self.assertIn(notify.esc(cmd), fix)
+        self.assertTrue(fix.endswith("\n```"))
+        self.assertTrue(all(len(t) <= notify.SECTION_LIMIT for t in section_texts(blocks)))
+
+    def test_the_limit_is_exact(self):
+        head = notify.fix_text([""], "low")
+        room = notify.SECTION_LIMIT - len(head)
+        self.assertEqual(notify.unshowable(["x" * room], "low"), "")
+        self.assertTrue(notify.unshowable(["x" * (room + 1)], "low"))
+        self.assertTrue(notify.unshowable(["x" * (room - 3) + "&"], "low"), "& costs five characters on the wire")
+
+    def test_confirm_dialog_repeats_short_commands(self):
+        text = notify.confirm_text(["docker compose up -d api"])
+        self.assertIn("docker compose up -d api", text)
+        long = ["docker restart api # " + "x" * 400]
+        self.assertLessEqual(len(notify.confirm_text(long)), notify.CONFIRM_LIMIT)
+        self.assertIn("Fix box", notify.confirm_text(long))
+
+    def test_a_stored_fix_that_cannot_be_shown_cannot_be_approved(self):
+        ctx, ns = make_ns()
+        inc_id, _ = open_incident(ns, ctx)
+        inc = ns.get_incident(inc_id)
+        inc.proposed_fix["commands"] = ["docker compose up -d api", "docker stop db ```"]
+        ns._save_incident(inc)
+        actions = next(b for b in notify.slack_blocks(inc) if b["type"] == "actions")
+        self.assertEqual([e["action_id"] for e in actions["elements"]], [notify.DENY_ACTION])
+        self.assertIn("Refusing", ns.approve(inc_id))
+        self.assertFalse(ran(ctx, "docker compose up -d api"))
+
+
+class TypedApprovalTests(unittest.TestCase):
+    def test_typed_approval_shows_the_commands_first(self):
+        ctx, ns = make_ns()
+        inc_id, _ = open_incident(ns, ctx)
+        first = night_shift._command(ns, f"approve {inc_id}", platform="cli")
+        self.assertIn("  $ docker compose up -d api", first)
+        self.assertFalse(ran(ctx, "docker compose up -d api"), "the first step only shows")
+        self.assertIn(night_shift._command(ns, f"approve {inc_id} 000000", platform="cli"), first)
+        self.assertFalse(ran(ctx, "docker compose up -d api"), "a wrong code only shows")
+        code = ns.approval_code(inc_id)
+        self.assertIn(f"/nightshift approve {inc_id} {code}", first)
+        ctx.healthy = True
+        night_shift._command(ns, f"approve {inc_id} {code}", platform="cli")
+        self.assertTrue(ran(ctx, "docker compose up -d api"))
+        self.assertEqual(ns.get_incident(inc_id).status, "resolved")
+
+    def test_a_changed_fix_needs_a_new_code(self):
+        ctx, ns = make_ns()
+        inc_id, _ = open_incident(ns, ctx)
+        old = ns.approval_code(inc_id)
+        ns.propose_fix({"incident_id": inc_id, **PROPOSAL, "commands": ["docker restart api"]})
+        self.assertNotEqual(ns.approval_code(inc_id), old)
+        night_shift._command(ns, f"approve {inc_id} {old}", platform="cli")
+        self.assertFalse(ran(ctx, "docker restart api"))
 
 
 if __name__ == "__main__":

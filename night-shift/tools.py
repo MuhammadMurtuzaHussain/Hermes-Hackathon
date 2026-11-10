@@ -12,6 +12,7 @@ the approval can change what ran or what was learned.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import re
@@ -22,14 +23,13 @@ import urllib.parse
 import urllib.request
 
 from . import policy
-from .notify import Notifier
+from .notify import Notifier, unshowable
 from .runbooks import ACTIVE, WORKING, Incident, Runbook, best_match, duration, one_line, render_skill, skill_name_for
 
 logger = logging.getLogger(__name__)
 
 ALERT_MARKER = "NIGHT SHIFT ALERT"  # the webhook route's prompt starts with this
 MAX_INCIDENTS = 200       # resolved incidents kept in plugin state
-MAX_COMMAND_CHARS = 2500  # the approver must be able to read everything that will run
 CHECK_OUTPUT_CHARS = 2500
 LOCAL_SURFACES = {"", "cli", "tui", "desktop", "local"}
 
@@ -259,8 +259,10 @@ class NightShift:
             if any(policy.is_destructive(c) for c in commands):
                 return _err("Night Shift does not offer destructive commands for one-tap approval. Propose "
                             "something reversible, or call nightshift_escalate so a person decides.")
-            if sum(len(c) for c in commands) > MAX_COMMAND_CHARS:
-                return _err("The commands are too long for an approver to read. Propose a shorter fix.")
+            if str(value("risk")) not in {"low", "medium", "high"}:
+                return _err("risk must be low, medium or high.")
+            if hidden := unshowable(commands, str(value("risk"))):
+                return _err(f"{hidden} The approver must see every command that runs. Propose a shorter fix.")
             promql = str(value("verify_promql")).strip()
             check = str(value("verify_command")).strip()
             if not promql and not check:
@@ -294,8 +296,8 @@ class NightShift:
                        approval=f"/nightshift approve {inc.id}", deny=f"/nightshift deny {inc.id}",
                        instruction=("The card with Approve and Deny buttons is posted. Reply with one short line and stop."
                                     if with_card else
-                                    "Tell the on-call engineer the diagnosis, the exact commands, the risk and how "
-                                    "to approve, then stop."))
+                                    "Tell the on-call engineer the diagnosis, the exact commands and the risk, and that "
+                                    f"/nightshift approve {inc.id} shows the commands with the code that runs them. Then stop."))
         except Exception as exc:
             logger.exception("Night Shift propose_fix failed")
             return _err(f"propose_fix failed: {exc}")
@@ -358,6 +360,8 @@ class NightShift:
                 return None, f"No proposed fix for {incident_id or '(missing id)'}."
             if inc.status != "fix_proposed":
                 return None, f"{inc.id} is already {inc.status.replace('_', ' ')}."
+            if hidden := unshowable(inc.proposed_fix.get("commands", []), str(inc.proposed_fix.get("risk", ""))):
+                return None, f"Refusing to run {inc.id}: {hidden}"
             ttl = float(self.cfg("approval_ttl_minutes", 60)) * 60
             if time.time() - (inc.proposed_at or 0) > ttl:
                 return None, f"The proposal for {inc.id} is too old to run safely. Re-run the investigation."
@@ -477,6 +481,31 @@ class NightShift:
         raw = self.ctx.dispatch_tool("skill_manage", {"operations": [op]})
         parsed = json.loads(raw) if isinstance(raw, str) else raw
         return parsed if isinstance(parsed, dict) else {}
+
+    def approval_code(self, incident_id: str) -> str:
+        """A short fingerprint of the exact commands, so a typed approval names what it runs."""
+        inc = self.get_incident(incident_id)
+        if not inc or not inc.proposed_fix:
+            return ""
+        blob = json.dumps(inc.proposed_fix.get("commands", []), ensure_ascii=False)
+        return hashlib.sha256(f"{inc.id}\n{blob}".encode()).hexdigest()[:6]
+
+    def preview_approval(self, incident_id: str) -> str:
+        """What a typed approval shows first: the stored commands, verbatim, and the code that runs them."""
+        inc = self.get_incident(incident_id)
+        if not inc or not inc.proposed_fix:
+            return f"No proposed fix for {incident_id or '(missing id)'}."
+        if inc.status != "fix_proposed":
+            return f"{inc.id} is already {inc.status.replace('_', ' ')}."
+        commands = inc.proposed_fix.get("commands", [])
+        return "\n".join([
+            f"{inc.id} · {inc.alertname} on {inc.service} · risk {inc.proposed_fix.get('risk')}",
+            f"Cause: {inc.proposed_fix.get('diagnosis')}",
+            f"Approving runs exactly these {len(commands)} command(s), in order, and nothing else:",
+            *[f"  $ {c}" for c in commands],
+            f"To run them: /nightshift approve {inc.id} {self.approval_code(inc.id)}",
+            f"To refuse: /nightshift deny {inc.id}",
+        ])
 
     def approve(self, incident_id: str, actor: str = "local") -> str:
         inc, problem = self.begin_approval(incident_id, actor)

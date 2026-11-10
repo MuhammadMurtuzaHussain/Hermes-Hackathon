@@ -33,7 +33,7 @@ platforms:
             summary: {commonAnnotations.summary}
           # With slack_channel set, Night Shift posts its own card with buttons, so the agent's
           # closing line goes nowhere. Without Slack, set this to telegram, discord... and
-          # approve with /nightshift approve <id>.
+          # approve with /nightshift approve <id>, which shows the exact commands and a code to confirm.
           deliver: "log"
 
 plugins:

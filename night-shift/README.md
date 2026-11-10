@@ -60,7 +60,7 @@ monitoring at the route. Alertmanager cannot sign webhooks, so
 For the Slack card, connect the Slack platform (`hermes slack manifest --agent-view --write`, then
 follow the [Slack guide](https://hermes-agent.nousresearch.com/docs/user-guide/messaging/slack)),
 and set `slack_channel` and `approvers`. Without Slack, set the route's `deliver` to any Hermes
-platform and approve with `/nightshift approve <id>`.
+platform and approve with `/nightshift approve <id>`, which prints the exact commands and a code to confirm them.
 
 ## Commands
 
@@ -71,7 +71,8 @@ platform and approve with `/nightshift approve <id>`.
 | `status` | Open incidents and learned runbooks |
 | `stats` | Time to a proposed fix and to verified recovery, per runbook |
 | `show <id>` | Cause, fix, outcome and timeline of an incident |
-| `approve <id>` / `deny <id>` | The same decisions as the buttons |
+| `approve <id>` | Shows the exact stored commands and a short code; `approve <id> <code>` runs them |
+| `deny <id>` | The same decision as the Deny button |
 | `forget <runbook\|all>` | Delete a runbook, or every runbook and the incident history |
 
 ## Settings
@@ -102,8 +103,10 @@ The model only ever reads and proposes. It never changes anything.
   that could write are blocked. The allowlist understands quoting, chaining, substitution and
   redirects, and refuses secrets such as `.env` files and a bare `docker inspect`.
 - **Approval.** Commands run only after a listed person approves. The click is checked against
-  `approvers`, can only run once, and expires. The card shows every command in full, and Night
-  Shift refuses a proposal too long to read.
+  `approvers`, can only run once, and expires. The card shows every command in full: the length is
+  measured on the escaped text Slack receives, and a fix that would not fit, or that contains a
+  code fence, is refused rather than cut. The confirm dialog repeats the commands when they fit.
+  Typed approval takes two steps, so it always shows the stored commands before they run.
 - **No destructive fixes.** `rm -rf`, `DROP TABLE`, volume deletion, force-pushes and the like are
   refused at proposal time, so they never reach an Approve button. Those are a human's job.
 - **Runbooks.** Commands in a runbook are only ever ones a person approved and a check verified.
